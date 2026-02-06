@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Treatment Plant Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 320px;
+            max-height: 90vh;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        #info-panel h2 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+            border-bottom: 1px solid #4fc3f7;
+            padding-bottom: 5px;
+        }
+
+        .status-section {
+            margin-bottom: 10px;
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .status-section h3 {
+            font-size: 13px;
+            color: #81d4fa;
+            margin: 0;
+            padding: 10px;
+            background: rgba(79, 195, 247, 0.1);
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .status-section h3:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+
+        .status-section h3::after {
+            content: '▼';
+            font-size: 10px;
+            transition: transform 0.3s;
+        }
+
+        .status-section.collapsed h3::after {
+            transform: rotate(-90deg);
+        }
+
+        .status-content {
+            max-height: 500px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            padding: 0 10px 10px 10px;
+        }
+
+        .status-section.collapsed .status-content {
+            max-height: 0;
+            padding: 0 10px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .status-item .label {
+            color: #aaa;
+        }
+
+        .status-item .value {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .status-item .value.alarm {
+            color: #ff5252;
+            animation: blink 0.5s infinite;
+        }
+
+        .status-item .value.ok {
+            color: #69f0ae;
+        }
+
+        .status-item .value.warning {
+            color: #ffd740;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+
+        #controls button {
+            background: #4fc3f7;
+            border: none;
+            color: #000;
+            padding: 8px 16px;
+            margin-right: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+
+        #controls button:hover {
+            background: #81d4fa;
+        }
+
+        #controls button.active {
+            background: #69f0ae;
+        }
+
+        #mode-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 8px;
+            z-index: 100;
+            font-size: 14px;
+        }
+
+        #mode-indicator .mode {
+            font-weight: bold;
+            color: #69f0ae;
+        }
+
+        #mode-indicator .mode.manual {
+            color: #ffd740;
+        }
+
+        #alarm-panel {
+            position: absolute;
+            top: 10px;
+            right: 150px;
+            background: rgba(255, 0, 0, 0.2);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 2px solid #ff5252;
+            z-index: 100;
+            display: none;
+        }
+
+        #alarm-panel.active {
+            display: block;
+            animation: alarm-pulse 1s infinite;
+        }
+
+        @keyframes alarm-pulse {
+            0%, 100% { border-color: #ff5252; background: rgba(255, 0, 0, 0.2); }
+            50% { border-color: #ff8a80; background: rgba(255, 0, 0, 0.4); }
+        }
+
+        #alarm-panel h4 {
+            color: #ff5252;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        #alarm-list {
+            font-size: 11px;
+            color: #ffcdd2;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+        }
+
+        #loading .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: #4fc3f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #loading.hidden {
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>Loading Water Treatment Plant...</div>
+    </div>
+
+    <div id="info-panel">
+        <h2>Plant Status Dashboard</h2>
+
+        <div class="status-section" id="rwt-status">
+            <h3 onclick="toggleSection('rwt-status')">Raw Water Tank (RWT)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Level</span><span class="value" id="rwt-level">--</span></div>
+                <div class="status-item"><span class="label">High Level Alarm</span><span class="value" id="rwt-high-alarm">--</span></div>
+                <div class="status-item"><span class="label">Low Level Alarm</span><span class="value" id="rwt-low-alarm">--</span></div>
+                <div class="status-item"><span class="label">pH</span><span class="value" id="rwt-ph">--</span></div>
+                <div class="status-item"><span class="label">Turbidity</span><span class="value" id="rwt-turbidity">--</span></div>
+                <div class="status-item"><span class="label">Inflow Rate</span><span class="value" id="rwt-inflow">--</span></div>
+                <div class="status-item"><span class="label">Outflow Rate</span><span class="value" id="rwt-outflow">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="cst-status">
+            <h3 onclick="toggleSection('cst-status')">Chemical Storage Tank (CST)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Level</span><span class="value" id="cst-level">--</span></div>
+                <div class="status-item"><span class="label">Low Level Alarm</span><span class="value" id="cst-low-alarm">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="cft-status">
+            <h3 onclick="toggleSection('cft-status')">Coagulation Tank (CFT)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Level</span><span class="value" id="cft-level">--</span></div>
+                <div class="status-item"><span class="label">Mixer Status</span><span class="value" id="cft-mixer">--</span></div>
+                <div class="status-item"><span class="label">pH</span><span class="value" id="cft-ph">--</span></div>
+                <div class="status-item"><span class="label">Turbidity</span><span class="value" id="cft-turbidity">--</span></div>
+                <div class="status-item"><span class="label">Dosing Rate</span><span class="value" id="cft-dosing">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="sct-status">
+            <h3 onclick="toggleSection('sct-status')">Sedimentation Tank (SCT)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Level</span><span class="value" id="sct-level">--</span></div>
+                <div class="status-item"><span class="label">Sludge Level</span><span class="value" id="sct-sludge">--</span></div>
+                <div class="status-item"><span class="label">Turbidity Outlet</span><span class="value" id="sct-turbidity">--</span></div>
+                <div class="status-item"><span class="label">Scraper Status</span><span class="value" id="sct-scraper">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="ftr-status">
+            <h3 onclick="toggleSection('ftr-status')">Filter Unit (FTR)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Flow Rate</span><span class="value" id="ftr-flow">--</span></div>
+                <div class="status-item"><span class="label">Differential Pressure</span><span class="value" id="ftr-pressure">--</span></div>
+                <div class="status-item"><span class="label">Backwash Status</span><span class="value" id="ftr-backwash">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="cwt-status">
+            <h3 onclick="toggleSection('cwt-status')">Clean Water Tank (CWT)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Level</span><span class="value" id="cwt-level">--</span></div>
+                <div class="status-item"><span class="label">High Level Alarm</span><span class="value" id="cwt-high-alarm">--</span></div>
+                <div class="status-item"><span class="label">Low Level Alarm</span><span class="value" id="cwt-low-alarm">--</span></div>
+                <div class="status-item"><span class="label">pH</span><span class="value" id="cwt-ph">--</span></div>
+                <div class="status-item"><span class="label">Turbidity</span><span class="value" id="cwt-turbidity">--</span></div>
+                <div class="status-item"><span class="label">Residual Chlorine</span><span class="value" id="cwt-chlorine">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="slt-status">
+            <h3 onclick="toggleSection('slt-status')">Sludge Tank (SLT)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Level</span><span class="value" id="slt-level">--</span></div>
+                <div class="status-item"><span class="label">Pump Status</span><span class="value" id="slt-pump">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="cdp-status">
+            <h3 onclick="toggleSection('cdp-status')">Chemical Dosing Pump (CDP)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Status</span><span class="value" id="cdp-status-val">--</span></div>
+                <div class="status-item"><span class="label">Mode</span><span class="value" id="cdp-mode">--</span></div>
+                <div class="status-item"><span class="label">Dosing Rate</span><span class="value" id="cdp-rate">--</span></div>
+                <div class="status-item"><span class="label">Total Chemical Used</span><span class="value" id="cdp-total">--</span></div>
+                <div class="status-item"><span class="label">Pressure</span><span class="value" id="cdp-pressure">--</span></div>
+                <div class="status-item"><span class="label">Fault</span><span class="value" id="cdp-fault">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="pps-status">
+            <h3 onclick="toggleSection('pps-status')">Main Pump Station (PPS)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Status</span><span class="value" id="pps-pump1">--</span></div>
+                <div class="status-item"><span class="label">Mode</span><span class="value" id="pps-mode">--</span></div>
+                <div class="status-item"><span class="label">Flow Rate</span><span class="value" id="pps-flow">--</span></div>
+                <div class="status-item"><span class="label">Outlet Pressure</span><span class="value" id="pps-pressure">--</span></div>
+                <div class="status-item"><span class="label">Fault</span><span class="value" id="pps-fault">--</span></div>
+            </div>
+        </div>
+
+        <div class="status-section collapsed" id="plt-status">
+            <h3 onclick="toggleSection('plt-status')">Plant Overall (PLT)</h3>
+            <div class="status-content">
+                <div class="status-item"><span class="label">Total Inflow</span><span class="value" id="plt-inflow">--</span></div>
+                <div class="status-item"><span class="label">Total Outflow</span><span class="value" id="plt-outflow">--</span></div>
+                <div class="status-item"><span class="label">System Mode</span><span class="value" id="plt-mode">--</span></div>
+                <div class="status-item"><span class="label">Alarm Status</span><span class="value" id="plt-alarm">--</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            section.classList.toggle('collapsed');
+        }
+    </script>
+
+    <div id="mode-indicator">
+        System Mode: <span class="mode" id="system-mode">AUTO</span><br>
+        <span style="font-size: 10px; color: #888;" id="data-source">Data: Loading...</span>
+    </div>
+
+    <div id="alarm-panel">
+        <h4>ACTIVE ALARMS</h4>
+        <div id="alarm-list"></div>
+    </div>
+
+    <div id="controls">
+        <button id="btn-reset-view">Reset View</button>
+        <button id="btn-toggle-labels">Toggle Labels</button>
+        <!-- <button id="btn-simulate">Simulate Data</button> -->
+        <!-- <button id="btn-zoom-in">Zoom In (+)</button>
+        <button id="btn-zoom-out">Zoom Out (-)</button> -->
+    </div>
+
+    <!-- Three.js and dependencies -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <!-- API Integration -->
+    <script src="api-config.js"></script>
+
+    <script type="module" src="wtp-visualizer.js"></script>
+</body>
+</html>
